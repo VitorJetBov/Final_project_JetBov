@@ -16,15 +16,15 @@
           </tr>
         </thead>
         <tbody>
-          <tr v-for="pasture in pastures" :key="pasture.pasto_id">
-            <td>{{ pasture.pasto_id }}</td>
-            <td>{{ pasture.recuperacao }}</td>
-            <td>{{ pasture.forragem_atual }}</td>
-            <td>{{ pasture.forragem_total }}</td>
-            <td>{{ pasture.capacidade_maxima }}</td>
+          <tr v-for="pasture in pastures" :key="pasture?.pasture_id">
+            <td>{{ pasture?.pasture_id }}</td>
+            <td>{{ pasture?.recovery_days }}</td>
+            <td>{{ pasture?.available_hay }}</td>
+            <td>{{ pasture?.total_hay }}</td>
+            <td>{{ pasture?.animal_quantity }}</td>
             <td>
               <button @click="editPasture(pasture)">Editar</button>
-              <button @click="deletePasture(pasture.pasto_id)">Excluir</button>
+              <button @click="deletePasture(pasture?.pasture_id)">Excluir</button>
             </td>
           </tr>
         </tbody>
@@ -35,17 +35,17 @@
         <span class="close" @click="closeModal">&times;</span>
         <h2>{{ isEditMode ? 'Editar Pastagem' : 'Adicionar Pastagem' }}</h2>
         <form @submit.prevent="savePasture">
-          <label for="recuperacao">Recuperação (dias):</label>
-          <input type="number" v-model="form.recuperacao" required />
+          <label for="recovery_days">Recuperação (dias):</label>
+          <input type="number" v-model="form.recovery_days" required />
 
-          <label for="forragem_atual">Forragem Atual:</label>
-          <input type="number" v-model="form.forragem_atual" required />
+          <label for="available_hay">Forragem Atual:</label>
+          <input type="number" v-model="form.available_hay" required />
 
-          <label for="forragem_total">Forragem Total:</label>
-          <input type="number" v-model="form.forragem_total" required />
+          <label for="total_hay">Forragem Total:</label>
+          <input type="number" v-model="form.total_hay" required />
 
-          <label for="capacidade_maxima">Capacidade Máxima:</label>
-          <input type="number" v-model="form.capacidade_maxima" required />
+          <label for="animal_quantity">Capacidade Máxima:</label>
+          <input type="number" v-model="form.animal_quantity" required />
 
           <button type="submit">{{ isEditMode ? 'Salvar' : 'Adicionar' }}</button>
         </form>
@@ -68,10 +68,10 @@ export default {
       isEditMode: false,
       errorMessage: '',
       form: {
-        recuperacao: '',
-        forragem_atual: '',
-        forragem_total: '',
-        capacidade_maxima: ''
+        recovery_days: '',
+        available_hay: '',
+        total_hay: '',
+        animal_quantity: ''
       }
     };
   },
@@ -80,10 +80,10 @@ export default {
       this.isEditMode = false;
       this.errorMessage = '';
       this.form = {
-        recuperacao: '',
-        forragem_atual: '',
-        forragem_total: '',
-        capacidade_maxima: ''
+        recovery_days: '',
+        available_hay: '',
+        total_hay: '',
+        animal_quantity: ''
       };
       this.showModal = true;
     },
@@ -99,69 +99,57 @@ export default {
     async savePasture() {
       const method = this.isEditMode ? 'PUT' : 'POST';
       const url = this.isEditMode
-        ? `http://localhost:8000/pastures/${this.form.pasto_id}`
-        : 'http://localhost:8000/pastures';
+        ? `http://192.168.15.46:8000/update_pasture/${this.form.pasture_id}`
+        : 'http://192.168.15.46:8000/create_pasture';
 
-      try {
-        const response = await fetch(url, {
-          method,
-          headers: {
-            'Content-Type': 'application/json'
-          },
-          body: JSON.stringify(this.form)
-        });
+      const pastureData = {
+        recovery_days: this.form.recovery_days,
+        available_hay: this.form.available_hay,
+        total_hay: this.form.total_hay,
+        animal_quantity: this.form.animal_quantity
+      };
 
-        if (!response.ok) {
-          throw new Error('Network response was not ok');
+      const response = await fetch(url, {
+        method,
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(pastureData)
+      });
+
+      const data = await response.json();
+
+      if (this.isEditMode) {
+        const index = this.pastures.findIndex(p => p.pasture_id === this.form.pasture_id);
+        if (index !== -1) {
+          this.pastures.splice(index, 1, data);
         }
-
-        const data = await response.json();
-
-        if (this.isEditMode) {
-          const index = this.pastures.findIndex(p => p.pasto_id === this.form.pasto_id);
-          if (index !== -1) {
-            this.pastures.splice(index, 1, data);
-          }
-        } else {
-          this.pastures.push(data);
-        }
-
-        this.closeModal();
-        this.fetchPastures(); // Fetch updated pastures list
-      } catch (error) {
-        console.error('Failed to save pasture:', error);
+      } else {
+        this.pastures.push(data);
       }
+
+      this.closeModal();
+      this.fetchPastures(); 
     },
-    async deletePasture(pasto_id) {
-      try {
-        const response = await fetch(`http://localhost:8000/pastures/${pasto_id}`, {
-          method: 'DELETE'
-        });
+    async deletePasture(pasture_id) {
+      await fetch(`http://192.168.15.46:8000/delete_pasture/${pasture_id}`, {
+        method: 'DELETE'
+      });
 
-        if (!response.ok) {
-          throw new Error('Network response was not ok');
-        }
-
-        this.pastures = this.pastures.filter(p => p.pasto_id !== pasto_id);
-      } catch (error) {
-        console.error('Failed to delete pasture:', error);
-      }
+      this.pastures = this.pastures.filter(p => p.pasture_id !== pasture_id);
     },
     async fetchPastures() {
-      try {
-        const response = await fetch('http://localhost:8000/list_pasture');
-        if (!response.ok) {
-          throw new Error('Network response was not ok');
-        }
-        const data = await response.json();
-        this.pastures = data;
-      } catch (error) {
-        console.error('Failed to fetch pastures:', error);
-      }
+      console.log('chamando')
+      const response = await fetch('http://192.168.15.46:8000/list_pasture', { headers: { 'Accept': 'application/json' } });
+      console.log(response)
+      const data = await response.json();
+      this.pastures = data;
     }
   },
+
   created() {
     this.fetchPastures();
+
   }
 };
 </script>
@@ -253,7 +241,7 @@ button:hover {
   font-weight: bold;
 }
 
-close:hover,
+.close:hover,
 .close:focus {
   color: black;
   text-decoration: none;

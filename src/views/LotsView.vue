@@ -14,13 +14,12 @@
           </tr>
         </thead>
         <tbody>
-          <tr v-for="lot in lots" :key="lot.lote_id">
-            <td>{{ lot.pasto_id }}</td>
-            <td>{{ lot.lote_id }}</td>
-            <td>{{ lot.nome }}</td>
+          <tr v-for="lot in lots" :key="lot.herd_id">
+            <td>{{ lot.pasture_id }}</td>
+            <td>{{ lot.herd_id }}</td>
+            <td>{{ lot.name }}</td>
             <td>
               <button @click="editLot(lot)">Editar</button>
-              <button @click="deleteLot(lot.lote_id)">Excluir</button>
             </td>
           </tr>
         </tbody>
@@ -31,11 +30,11 @@
         <span class="close" @click="closeModal">&times;</span>
         <h2>{{ isEditMode ? 'Editar Lote' : 'Adicionar Lote' }}</h2>
         <form @submit.prevent="saveLot">
-          <label for="pasto_id">Pasto ID:</label>
-          <input type="number" v-model="form.pasto_id" required />
+          <label for="pasture_id">Pasto ID:</label>
+          <input type="number" v-model="form.pasture_id" required />
 
-          <label for="nome">Nome:</label>
-          <input type="text" v-model="form.nome" required />
+          <label for="name">Nome:</label>
+          <input type="text" v-model="form.name" required />
 
           <button type="submit">{{ isEditMode ? 'Salvar' : 'Adicionar' }}</button>
         </form>
@@ -59,8 +58,9 @@ export default {
       isEditMode: false,
       errorMessage: '',
       form: {
-        pasto_id: '',
-        nome: ''
+        pasture_id: '',
+        name: '',
+        herd_id: null 
       }
     };
   },
@@ -69,8 +69,9 @@ export default {
       this.isEditMode = false;
       this.errorMessage = '';
       this.form = {
-        pasto_id: '',
-        nome: ''
+        pasture_id: '',
+        name: '',
+        herd_id: null
       };
       this.showModal = true;
     },
@@ -80,89 +81,78 @@ export default {
     editLot(lot) {
       this.isEditMode = true;
       this.errorMessage = '';
-      this.form = { ...lot };
+      this.form = { pasture_id: lot.pasture_id, name: lot.name, herd_id: lot.herd_id };
       this.showModal = true;
     },
     async saveLot() {
-      const pastureExists = this.pastures.some(pasture => pasture.pasto_id === this.form.pasto_id);
+      const pastureExists = this.pastures.some(pasture => pasture.pasture_id === this.form.pasture_id);
       if (!pastureExists) {
-        this.errorMessage = 'O Pasto ID fornecido não está cadastrado em Pastagens.';
+        this.errorMessage = 'O Pasto ID fornecido não está cadastrado.';
         return;
+      }
+      if (!this.isEditMode) {
+        const duplicateLot = this.lots.find(l => l.herd_id === this.form.herd_id);
+        if (duplicateLot) {
+          this.errorMessage = 'Lote ID já existe. Escolha outro Lote ID.';
+          return;
+        }
       }
 
       const method = this.isEditMode ? 'PUT' : 'POST';
       const url = this.isEditMode
-        ? `http://localhost:8000/herds/${this.form.lote_id}`
-        : 'http://localhost:8000/herds';
+        ? `http://192.168.15.46:8000/update_herd/${this.form.herd_id}`
+        : 'http://192.168.15.46:8000/create_herd';
 
-      try {
-        const response = await fetch(url, {
-          method,
-          headers: {
-            'Content-Type': 'application/json'
-          },
-          body: JSON.stringify(this.form)
-        });
+      const response = await fetch(url, {
+        method,
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ pasture_id: this.form.pasture_id, name: this.form.name })
+      });
 
-        if (!response.ok) {
-          throw new Error('Network response was not ok');
-        }
-
-        const data = await response.json();
-
-        if (this.isEditMode) {
-          const index = this.lots.findIndex(l => l.lote_id === this.form.lote_id);
-          if (index !== -1) {
-            this.lots.splice(index, 1, data);
-          }
-        } else {
-          this.lots.push(data);
-        }
-
-        this.closeModal();
-        this.fetchLots(); // Fetch updated lots list
-      } catch (error) {
-        console.error('Failed to save lot:', error);
+      if (!response.ok) {
+        const errorData = await response.json();
+        this.errorMessage = `Failed to save lot: ${errorData.detail || response.statusText}`;
+        return;
       }
+
+      const data = await response.json();
+
+      if (this.isEditMode) {
+        const index = this.lots.findIndex(l => l.herd_id === data.herd_id);
+        if (index !== -1) {
+          this.lots.splice(index, 1, data);
+        }
+      } else {
+        this.lots.push(data);
+      }
+
+      this.closeModal();
+      this.fetchLots(); 
     },
-    async deleteLot(lote_id) {
-      try {
-        const response = await fetch(`http://localhost:8000/herds/${lote_id}`, {
-          method: 'DELETE'
-        });
+    async deleteLot(herd_id) {
+      const response = await fetch(`http://192.168.15.46:8000/delete_herd/${herd_id}`, {
+        method: 'DELETE'
+      });
 
-        if (!response.ok) {
-          throw new Error('Network response was not ok');
-        }
-
-        this.lots = this.lots.filter(l => l.lote_id !== lote_id);
-      } catch (error) {
-        console.error('Failed to delete lot:', error);
+      if (!response.ok) {
+        const errorData = await response.json();
+        this.errorMessage = `Failed to delete lot: ${errorData.detail || response.statusText}`;
+        return;
       }
+
+      this.lots = this.lots.filter(l => l.herd_id !== herd_id);
     },
     async fetchLots() {
-      try {
-        const response = await fetch('http://localhost:8000/list_herd');
-        if (!response.ok) {
-          throw new Error('Network response was not ok');
-        }
-        const data = await response.json();
-        this.lots = data;
-      } catch (error) {
-        console.error('Failed to fetch lots:', error);
-      }
+      const response = await fetch('http://192.168.15.46:8000/list_herd');
+      const data = await response.json();
+      this.lots = data;
     },
     async fetchPastures() {
-      try {
-        const response = await fetch('http://localhost:8000/list_pasture');
-        if (!response.ok) {
-          throw new Error('Network response was not ok');
-        }
-        const data = await response.json();
-        this.pastures = data;
-      } catch (error) {
-        console.error('Failed to fetch pastures:', error);
-      }
+      const response = await fetch('http://192.168.15.46:8000/list_pasture');
+      const data = await response.json();
+      this.pastures = data;
     }
   },
   created() {
@@ -229,7 +219,6 @@ button:hover {
   transform: scale(1.05);
 }
 
-/* Modal styling */
 .modal {
   display: flex;
   justify-content: center;
@@ -259,7 +248,7 @@ button:hover {
   font-weight: bold;
 }
 
-close:hover,
+.close:hover,
 .close:focus {
   color: black;
   text-decoration: none;

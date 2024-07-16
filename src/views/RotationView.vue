@@ -2,31 +2,35 @@
   <div class="rotation">
     <Navbar />
     <div class="content">
-      <h1>Projeção Pasto</h1>
-      <div class="rotation-input">
-        <label for="rotation-days">Dias de rotação:</label>
-        <input type="number" v-model="rotationDays" id="rotation-days" />
-        <button @click="startRotation">Iniciar</button>
-      </div>
-      <table>
-        <thead>
-          <tr>
-            <th>Pasto ID</th>
-            <th>Lote ID</th>
-            <th>Forragem Atual</th>
-            <th>Dia</th>
-          </tr>
-        </thead>
-        <tbody>
-          <tr v-for="rotation in rotations" :key="rotation.id">
-            <td>{{ rotation.pasto_id }}</td>
-            <td>{{ rotation.lote_id }}</td>
-            <td>{{ rotation.forragem_atual }}</td>
-            <td>{{ rotation.dia }}</td>
-          </tr>
-        </tbody>
-      </table>
+      <h1>Projeção de Rotação</h1>
+      <form @submit.prevent="startProjection">
+        <label for="days">Dias de Rotação:</label>
+        <input type="number" v-model="days" id="days" required />
+        <button type="submit">Iniciar</button>
+      </form>
       <button @click="navigateToAnimalProjection">Projeção Animal</button>
+      <div class="table-container">
+        <table v-if="rotations && rotations.length">
+          <thead>
+            <tr>
+              <th>Dia</th>
+              <th>Pasto ID</th>
+              <th>Lote ID</th>
+              <th>Forragem Disponível</th>
+              <th>% Forragem Disponível</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr v-for="rotation in rotations" :key="rotation.day">
+              <td>{{ rotation.day }}</td>
+              <td>{{ rotation.pasture_id }}</td>
+              <td>{{ rotation.herd_id }}</td>
+              <td>{{ rotation.available_hay }}</td>
+              <td>{{ rotation.perc_available_hay }}</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
     </div>
   </div>
 </template>
@@ -40,23 +44,37 @@ export default {
   components: { Navbar },
   data() {
     return {
-      rotations: [],
-      rotationDays: 0,
+      days: '',
+      rotations: []
     };
   },
   methods: {
-    async startRotation() {
-      const response = await fetch(`http://localhost:8000/start_projection/${this.rotationDays}`);
-      const data = await response.json();
-      this.rotations = data;
+    async startProjection() {
+      try {
+        const response = await fetch(`http://192.168.15.46:8000/start_projection/${this.days}`);
+        if (response.ok) {
+          this.fetchRotations();
+        } else {
+          console.error('Failed to start projection:', response.statusText);
+        }
+      } catch (error) {
+        console.error('Failed to start projection:', error);
+      }
+    },
+    async fetchRotations() {
+      try {
+        const response = await fetch(`http://192.168.15.46:8000/pasture_projection`);
+        const data = await response.json();
+        this.rotations = data;
+      } catch (error) {
+        console.error('Failed to fetch rotations:', error);
+        this.rotations = [];
+      }
     },
     navigateToAnimalProjection() {
       this.$router.push({ name: 'AnimalProjectionView' });
-    },
-  },
-  created() {
-    // Fetch initial data if needed
-  },
+    }
+  }
 };
 </script>
 
@@ -66,22 +84,59 @@ export default {
   background-size: cover;
   background-position: center;
   height: 100vh;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  overflow: hidden; /* Fix the background and other content */
 }
 
 .content {
-  background: rgba(255, 255, 255, 0.8);
+  background: rgba(255, 255, 255, 0.9);
   padding: 20px;
   margin: 20px;
   border-radius: 10px;
   width: 60%;
-  margin: auto;
 }
 
-.rotation-input {
+form {
   display: flex;
-  justify-content: space-between;
   align-items: center;
   margin-bottom: 20px;
+}
+
+label {
+  margin-right: 10px;
+}
+
+input {
+  margin-right: 10px;
+  padding: 5px;
+  border-radius: 5px;
+  border: 1px solid #ddd;
+}
+
+button {
+  background-color: green;
+  color: white;
+  border: none;
+  padding: 5px 10px;
+  cursor: pointer;
+  margin: 2px;
+  border-radius: 3px;
+  text-transform: uppercase;
+  font-weight: bold;
+  transition: background-color 0.3s, transform 0.3s;
+}
+
+button:hover {
+  background-color: darkgreen;
+  transform: scale(1.05);
+}
+
+.table-container {
+  height: 60vh; /* Set the desired height for the table container */
+  overflow-y: auto; /* Enable vertical scrolling */
+  width: 100%;
 }
 
 table {
@@ -101,21 +156,9 @@ th {
   color: white;
 }
 
-button {
-  background-color: green;
-  color: white;
-  border: none;
-  padding: 10px 20px;
-  cursor: pointer;
-  border-radius: 5px;
-  text-transform: uppercase;
+p {
+  margin-top: 20px;
+  color: red;
   font-weight: bold;
-  transition: background-color 0.3s, transform 0.3s;
-  margin-top: 10px;
-}
-
-button:hover {
-  background-color: darkgreen;
-  transform: scale(1.05);
 }
 </style>

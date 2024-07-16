@@ -3,26 +3,28 @@
     <Navbar />
     <div class="content">
       <h1>Projeção Animal</h1>
-      <table>
-        <thead>
-          <tr>
-            <th>RFID</th>
-            <th>Lote ID</th>
-            <th>GMD</th>
-            <th>Ganho (kg)</th>
-            <th>Dia</th>
-          </tr>
-        </thead>
-        <tbody>
-          <tr v-for="projection in projections" :key="projection.id">
-            <td>{{ projection.rfid }}</td>
-            <td>{{ projection.lote_id }}</td>
-            <td>{{ projection.gmd }}</td>
-            <td>{{ projection.ganho }}</td>
-            <td>{{ projection.dia }}</td>
-          </tr>
-        </tbody>
-      </table>
+      <div class="table-container">
+        <table>
+          <thead>
+            <tr>
+              <th>RFID</th>
+              <th>Lote ID</th>
+              <th>GMD</th>
+              <th>Ganho (kg)</th>
+              <th>Dia</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr v-for="projection in projections" :key="projection.id">
+              <td>{{ projection.rfid }}</td>
+              <td>{{ projection.herd_id }}</td>
+              <td>{{ projection.gmd }}</td>
+              <td>{{ projection.kg_gain }}</td>
+              <td>{{ projection.day }}</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
     </div>
   </div>
 </template>
@@ -40,9 +42,16 @@ export default {
   },
   methods: {
     async fetchProjections() {
-      const response = await fetch('http://localhost:8000/animal_projection');
-      const data = await response.json();
-      this.projections = data;
+      try {
+        const response = await fetch('http://192.168.15.46:8000/animal_projection/');
+        if (!response.ok) {
+          throw new Error(`HTTP error! status: ${response.status}`);
+        }
+        const data = await response.json();
+        this.projections = data;
+      } catch (error) {
+        console.error('Failed to fetch projections:', error);
+      }
     },
   },
   created() {
@@ -57,6 +66,10 @@ export default {
   background-size: cover;
   background-position: center;
   height: 100vh;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  overflow: hidden; /* Fix the background and other content */
 }
 
 .content {
@@ -65,7 +78,12 @@ export default {
   margin: 20px;
   border-radius: 10px;
   width: 60%;
-  margin: auto;
+}
+
+.table-container {
+  height: 60vh; 
+  overflow-y: auto; 
+  width: 100%;
 }
 
 table {

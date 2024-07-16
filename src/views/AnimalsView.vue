@@ -8,9 +8,9 @@
         <thead>
           <tr>
             <th>RFID</th>
+            <th>Idade (meses)</th>
             <th>Peso de Entrada</th>
             <th>Peso Atual</th>
-            <th>Idade (meses)</th>
             <th>Necessidade Nutricional</th>
             <th>Lote ID</th>
             <th>Ações</th>
@@ -19,11 +19,11 @@
         <tbody>
           <tr v-for="animal in animals" :key="animal.rfid">
             <td>{{ animal.rfid }}</td>
-            <td>{{ animal.peso_entrada }}</td>
-            <td>{{ animal.peso_atual }}</td>
-            <td>{{ animal.idade }}</td>
-            <td>{{ animal.necessidade_nutricional }}</td>
-            <td>{{ animal.lote_id }}</td>
+            <td>{{ animal.age }}</td>
+            <td>{{ animal.last_weight }}</td>
+            <td>{{ animal.current_weight }}</td>
+            <td>{{ animal.nutritional_needs }}</td>
+            <td>{{ animal.herd_id }}</td>
             <td>
               <button @click="editAnimal(animal)">Editar</button>
               <button @click="deleteAnimal(animal.rfid)">Excluir</button>
@@ -37,20 +37,20 @@
         <span class="close" @click="closeModal">&times;</span>
         <h2>{{ isEditMode ? 'Editar Animal' : 'Adicionar Animal' }}</h2>
         <form @submit.prevent="saveAnimal">
-          <label for="peso_entrada">Peso de Entrada:</label>
-          <input type="number" v-model="form.peso_entrada" required />
+          <label for="age">Idade (meses):</label>
+          <input type="number" v-model="form.age" required />
 
-          <label for="peso_atual">Peso Atual:</label>
-          <input type="number" v-model="form.peso_atual" required />
+          <label for="last_weight">Peso de Entrada:</label>
+          <input type="number" v-model="form.last_weight" required />
 
-          <label for="idade">Idade (meses):</label>
-          <input type="number" v-model="form.idade" required />
+          <label for="current_weight">Peso Atual:</label>
+          <input type="number" v-model="form.current_weight" required />
 
-          <label for="necessidade_nutricional">Necessidade Nutricional:</label>
-          <input type="number" v-model="form.necessidade_nutricional" required />
+          <label for="nutritional_needs">Necessidade Nutricional:</label>
+          <input type="number" v-model="form.nutritional_needs" required />
 
-          <label for="lote_id">Lote ID:</label>
-          <input type="number" v-model="form.lote_id" required />
+          <label for="herd_id">Lote ID:</label>
+          <input type="number" v-model="form.herd_id" required />
 
           <button type="submit">{{ isEditMode ? 'Salvar' : 'Adicionar' }}</button>
         </form>
@@ -69,16 +69,15 @@ export default {
   data() {
     return {
       animals: [],
-      lots: [],
       showModal: false,
       isEditMode: false,
       errorMessage: '',
       form: {
-        peso_entrada: '',
-        peso_atual: '',
-        idade: '',
-        necessidade_nutricional: '',
-        lote_id: ''
+        age: '',
+        last_weight: '',
+        current_weight: '',
+        nutritional_needs: '',
+        herd_id: ''
       }
     };
   },
@@ -87,11 +86,11 @@ export default {
       this.isEditMode = false;
       this.errorMessage = '';
       this.form = {
-        peso_entrada: '',
-        peso_atual: '',
-        idade: '',
-        necessidade_nutricional: '',
-        lote_id: ''
+        age: '',
+        last_weight: '',
+        current_weight: '',
+        nutritional_needs: '',
+        herd_id: ''
       };
       this.showModal = true;
     },
@@ -99,22 +98,20 @@ export default {
       this.showModal = false;
     },
     editAnimal(animal) {
+      if (!animal || !animal.rfid) {
+        this.errorMessage = 'Animal selecionado não possui RFID';
+        return;
+      }
       this.isEditMode = true;
       this.errorMessage = '';
       this.form = { ...animal };
       this.showModal = true;
     },
     async saveAnimal() {
-      const lotExists = this.lots.some(lot => lot.lote_id === this.form.lote_id);
-      if (!lotExists) {
-        this.errorMessage = 'O Lote ID fornecido não está cadastrado.';
-        return;
-      }
-
       const method = this.isEditMode ? 'PUT' : 'POST';
       const url = this.isEditMode
-        ? `http://localhost:8000/animals/${this.form.rfid}`
-        : 'http://localhost:8000/animals';
+        ? `http://192.168.15.46:8000/update_animal/${this.form.rfid}`
+        : 'http://192.168.15.46:8000/create_animal';
 
       try {
         const response = await fetch(url, {
@@ -122,17 +119,24 @@ export default {
           headers: {
             'Content-Type': 'application/json'
           },
-          body: JSON.stringify(this.form)
+          body: JSON.stringify({
+            age: this.form.age,
+            last_weight: this.form.last_weight,
+            current_weight: this.form.current_weight,
+            nutritional_needs: this.form.nutritional_needs,
+            herd_id: this.form.herd_id
+          })
         });
 
         if (!response.ok) {
-          throw new Error('Network response was not ok');
+          const errorData = await response.json();
+          throw new Error(errorData.detail || response.statusText);
         }
 
         const data = await response.json();
 
         if (this.isEditMode) {
-          const index = this.animals.findIndex(a => a.rfid === this.form.rfid);
+          const index = this.animals.findIndex(a => a.rfid === data.rfid);
           if (index !== -1) {
             this.animals.splice(index, 1, data);
           }
@@ -141,54 +145,47 @@ export default {
         }
 
         this.closeModal();
-        this.fetchAnimals(); // Fetch updated animals list
+        this.fetchAnimals();
       } catch (error) {
-        console.error('Failed to save animal:', error);
+        this.errorMessage = `Failed to save animal: ${error.message}`;
       }
     },
     async deleteAnimal(rfid) {
+      if (!rfid) {
+        this.errorMessage = 'RFID não pode ser nulo';
+        return;
+      }
       try {
-        const response = await fetch(`http://localhost:8000/animals/${rfid}`, {
+        const response = await fetch(`http://192.168.15.46:8000/delete_animal/${rfid}`, {
           method: 'DELETE'
         });
 
         if (!response.ok) {
-          throw new Error('Network response was not ok');
+          const errorData = await response.json();
+          throw new Error(errorData.detail || response.statusText);
         }
 
         this.animals = this.animals.filter(a => a.rfid !== rfid);
       } catch (error) {
-        console.error('Failed to delete animal:', error);
+        this.errorMessage = `Failed to delete animal: ${error.message}`;
       }
     },
     async fetchAnimals() {
       try {
-        const response = await fetch('http://localhost:8000/list_animal');
+        const response = await fetch('http://192.168.15.46:8000/list_animal');
         if (!response.ok) {
-          throw new Error('Network response was not ok');
+          const errorData = await response.json();
+          throw new Error(errorData.detail || response.statusText);
         }
         const data = await response.json();
         this.animals = data;
       } catch (error) {
-        console.error('Failed to fetch animals:', error);
-      }
-    },
-    async fetchLots() {
-      try {
-        const response = await fetch('http://localhost:8000/list_herd');
-        if (!response.ok) {
-          throw new Error('Network response was not ok');
-        }
-        const data = await response.json();
-        this.lots = data;
-      } catch (error) {
-        console.error('Failed to fetch lots:', error);
+        this.errorMessage = `Failed to fetch animals: ${error.message}`;
       }
     }
   },
   created() {
     this.fetchAnimals();
-    this.fetchLots();
   }
 };
 </script>
@@ -280,7 +277,7 @@ button:hover {
   font-weight: bold;
 }
 
-close:hover,
+.close:hover,
 .close:focus {
   color: black;
   text-decoration: none;
